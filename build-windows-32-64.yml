@@ -1,0 +1,88 @@
+name: Build Bayt Al Hams (Windows 32-bit + 64-bit)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Windows ${{ matrix.arch }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            label: 32-bit
+          - arch: x64
+            label: 64-bit
+
+    steps:
+      - name: Get source code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: ${{ matrix.arch }}
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+
+      - name: Check project files
+        shell: pwsh
+        run: |
+          if (!(Test-Path "main.py")) { throw "main.py is missing" }
+          if (!(Test-Path "fp3d.py")) { throw "fp3d.py is missing" }
+          if (!(Test-Path "server.py")) { throw "server.py is missing" }
+          if (!(Test-Path "assets")) { throw "The assets folder is missing. Upload the complete assets folder to GitHub." }
+
+      - name: Build EXE
+        shell: pwsh
+        run: |
+          $pyArgs = @(
+            "--noconfirm",
+            "--clean",
+            "--onefile",
+            "--windowed",
+            "--name", "BaytAlHams",
+            "--add-data", "assets;assets",
+            "--hidden-import", "server",
+            "--hidden-import", "pyttsx3.drivers.sapi5",
+            "--hidden-import", "comtypes.client",
+            "--collect-all", "pyttsx3",
+            "--collect-all", "comtypes",
+            "main.py"
+          )
+
+          # Add the EXE icon only if the icon file exists in the repository.
+          if (Test-Path "assets\icon.ico") {
+            $pyArgs = @("--icon", "assets\icon.ico") + $args
+          }
+
+          python -m PyInstaller @pyArgs
+
+          if (!(Test-Path "dist\BaytAlHams.exe")) {
+            throw "PyInstaller did not create dist\BaytAlHams.exe"
+          }
+
+          Copy-Item "dist\BaytAlHams.exe" "dist\BaytAlHams-${{ matrix.arch }}.exe"
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BaytAlHams-Windows-${{ matrix.arch }}
+          path: dist/BaytAlHams-${{ matrix.arch }}.exe
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
