@@ -1,70 +1,53 @@
-name: Build EXE and APK (32-bit + 64-bit)
+
+name: Build Bayt Al Hams
 
 on:
-  workflow_dispatch:        # زرار "Run workflow" يدوي
+  workflow_dispatch:
   push:
-    branches: [main, master]
+    tags:
+      - "v*"
 
 jobs:
-  # ================= ويندوز: نسختين EXE (32 بت و 64 بت)
-  windows-exe:
+  build:
+    name: Build Windows ${{ matrix.arch }}
     runs-on: windows-latest
-    strategy:
-      fail-fast: false      # لو نسخة فشلت التانية تكمّل
-      matrix:
-        include:
-          - bits: "64"
-            arch: x64
-          - bits: "32"
-            arch: x86
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          architecture: ${{ matrix.arch }}
-      - run: python -m pip install --upgrade pip
-      - run: python -m pip install -r requirements.txt pyinstaller
-      - run: python -m PyInstaller --noconfirm --onefile --windowed --name BaytAlHams_${{ matrix.bits }}bit --icon assets/icon.ico --add-data "assets;assets" --hidden-import pyttsx3.drivers --hidden-import pyttsx3.drivers.sapi5 --hidden-import server --hidden-import fp3d main.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: BaytAlHams-EXE-${{ matrix.bits }}bit
-          path: dist/BaytAlHams_${{ matrix.bits }}bit.exe
 
-  # ================= أندرويد: APK لكل معمارية (32 بت = armeabi-v7a ، 64 بت = arm64-v8a)
-  android-apk:
-    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         include:
-          - bits: "64"
-            arch: arm64-v8a
-          - bits: "32"
-            arch: armeabi-v7a
+          - arch: x86
+            python: "3.11"
+          - arch: x64
+            python: "3.11"
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-      - name: System packages
+          python-version: ${{ matrix.python }}
+          architecture: ${{ matrix.arch }}
+
+      - name: Install dependencies
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends autoconf automake build-essential ccache cmake gettext git libffi-dev libltdl-dev libncurses5-dev libncursesw5-dev libssl-dev libtinfo5 libtool patch pkg-config unzip zip zlib1g-dev
-      - name: Buildozer
-        run: pip install --upgrade buildozer "Cython<0.30" virtualenv pip appdirs packaging colorama jinja2 toml build
-      - name: Set target architecture (${{ matrix.bits }}-bit)
-        run: sed -i 's/^android.archs *=.*/android.archs = ${{ matrix.arch }}/' buildozer.spec
-      - name: Build APK
-        run: buildozer -v android debug
-      - name: Rename APK
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+
+      - name: Build EXE
         run: |
-          for f in bin/*.apk; do mv "$f" "bin/BaytAlHams_${{ matrix.bits }}bit_${{ matrix.arch }}.apk"; done
-      - uses: actions/upload-artifact@v4
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name BaytAlHams --icon assets/icon.ico --add-data "assets;assets" --hidden-import pyttsx3.drivers --hidden-import pyttsx3.drivers.sapi5 --hidden-import server main.py
+
+      - name: Rename EXE
+        run: |
+          Rename-Item dist/BaytAlHams.exe BaytAlHams-${{ matrix.arch }}.exe
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
         with:
-          name: BaytAlHams-APK-${{ matrix.bits }}bit
-          path: bin/*.apk
+          name: BaytAlHams-Windows-${{ matrix.arch }}
+          path: dist/BaytAlHams-${{ matrix.arch }}.exe
+          if-no-files-found: error
