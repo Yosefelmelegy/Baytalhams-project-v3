@@ -67,7 +67,7 @@ jobs:
 
           # Add the EXE icon only if the icon file exists in the repository.
           if (Test-Path "assets\icon.ico") {
-            $pyArgs = @("--icon", "assets\icon.ico") + $args
+            $pyArgs = @("--icon", "assets\icon.ico") + $pyArgs
           }
 
           python -m PyInstaller @pyArgs
